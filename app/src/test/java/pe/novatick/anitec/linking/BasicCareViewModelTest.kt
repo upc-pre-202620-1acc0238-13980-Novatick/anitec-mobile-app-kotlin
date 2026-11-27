@@ -22,4 +22,39 @@ class BasicCareViewModelTest {
  @Test fun uncertainWriteStaysLockedWithoutAutomaticRetry()=runTest{val f=Fake();f.fail=true;val vm=BasicCareViewModel(f,Role.VETERINARIO,StandardTestDispatcher(testScheduler));fill(vm);vm.save();advanceUntilIdle();assertTrue(vm.state.value.uncertain);vm.save();vm.begin("owner","other");advanceUntilIdle();assertEquals(1,f.calls);assertNull(vm.state.value.saved);vm.close()}
  @Test fun ownerCannotSaveButCanReadAndFailedRefreshClearsDetail()=runTest{val f=Fake();val vm=BasicCareViewModel(f,Role.GANADERO,StandardTestDispatcher(testScheduler));fill(vm);vm.save();advanceUntilIdle();assertEquals(0,f.calls);assertEquals(403,vm.state.value.error!!.status);vm.read("care","animal");advanceUntilIdle();assertNotNull(vm.state.value.detail);f.fail=true;vm.read("care","animal");advanceUntilIdle();assertNull(vm.state.value.detail);assertEquals(403,vm.state.value.readError!!.status);vm.close()}
  @Test fun lateCompletionAfterLogoutCannotRestoreData()=runTest{val f=Fake();f.gate=CompletableDeferred();val vm=BasicCareViewModel(f,Role.VETERINARIO,StandardTestDispatcher(testScheduler));fill(vm);vm.save();runCurrent();vm.close();f.gate!!.complete(Unit);advanceUntilIdle();assertNull(vm.state.value.saved);assertEquals("",vm.state.value.animalId)}
+ @Test fun validationAndDefiniteRejectionPermitOnlyExplicitCorrectedSubmission()=runTest {
+  var rejected=true
+  val f=object:Fake(){override suspend fun createCare(farmerId:String,input:NewBasicCare):BasicCare{if(rejected){calls++;throw AuthFailure(AuthProblem.SERVER,400)};return super.createCare(farmerId,input)}}
+  val vm=BasicCareViewModel(f,Role.VETERINARIO,StandardTestDispatcher(testScheduler))
+  fill(vm);vm.title(" ");vm.save();advanceUntilIdle();assertEquals(0,f.calls)
+  vm.title("Control");vm.save();advanceUntilIdle();assertEquals(1,f.calls);assertFalse(vm.state.value.uncertain);assertNull(vm.state.value.saved)
+  rejected=false;vm.description("Corrected");assertNull(vm.state.value.error);vm.save();advanceUntilIdle()
+  assertEquals(2,f.calls);assertEquals("Corrected",vm.state.value.saved!!.description);vm.close()
+ }
+ @Test fun uncertainSaveStillAllowsReadOnlyReconciliationWithoutUnlockingPost()=runTest {
+  val f=object:Fake(){override suspend fun createCare(farmerId:String,input:NewBasicCare):BasicCare{calls++;throw AuthFailure(AuthProblem.NETWORK)}}
+  val vm=BasicCareViewModel(f,Role.VETERINARIO,StandardTestDispatcher(testScheduler));fill(vm);vm.save();advanceUntilIdle()
+  vm.read("care","60000000-0000-4000-8000-000000000001");advanceUntilIdle();assertNotNull(vm.state.value.detail)
+  assertTrue(vm.state.value.uncertain);vm.save();advanceUntilIdle();assertEquals(1,f.calls);assertNull(vm.state.value.saved);vm.close()
+ }
+ @Test fun successfulSaveRefreshesLatestCareFromRepositoryInsteadOfInventingHistory()=runTest {
+  var record:BasicCare?=null;var reads=0
+  val f=object:Fake(){
+   override suspend fun createCare(farmerId:String,input:NewBasicCare)=super.createCare(farmerId,input).also{record=it}
+   override suspend fun animal(farmerId:String,animalId:String):AnimalDetail{reads++;return AnimalDetail(animalId,"AN-001","QA","Bovino","species",AnimalSex.HEMBRA,null,null,AnimalStatus.ACTIVO,"farm","Farm",0,null,record?.let{listOf(CareSummary(it.id,it.title,it.vetName,it.date,it.description))} ?: emptyList())}
+  }
+  val dispatcher=StandardTestDispatcher(testScheduler);val care=BasicCareViewModel(f,Role.VETERINARIO,dispatcher);val linked=LinkingViewModel(f,Role.VETERINARIO,dispatcher)
+  fill(care);linked.readAnimal("owner",care.state.value.animalId);advanceUntilIdle();assertTrue(linked.state.value.animal.value!!.recentCare!!.isEmpty())
+  care.save();advanceUntilIdle();assertNotNull(care.state.value.saved)
+  // The navigation success callback consumes the result, refreshes the animal, and returns to its profile.
+  care.consumeSaved();linked.readAnimal("owner",care.state.value.animalId);assertNull(linked.state.value.animal.value);advanceUntilIdle()
+  assertEquals("care",linked.state.value.animal.value!!.recentCare!!.single().id);assertEquals(1,f.calls);assertEquals(2,reads);assertNull(care.state.value.saved)
+  care.close();linked.close()
+ }
+ @Test fun lateReadIgnoringCancellationCannotCrossAccountDisposal()=runTest {
+  val gate=CompletableDeferred<Unit>();val f=object:Fake(){override suspend fun care(id:String,animalId:String):BasicCare{withContext(NonCancellable){gate.await()};return super.care(id,animalId)}}
+  val dispatcher=StandardTestDispatcher(testScheduler);val old=BasicCareViewModel(f,Role.VETERINARIO,dispatcher);old.read("care","old-animal");runCurrent();old.close()
+  val next=BasicCareViewModel(f,Role.GANADERO,dispatcher);gate.complete(Unit);advanceUntilIdle()
+  assertEquals(BasicCareState(),old.state.value);assertEquals(BasicCareState(),next.state.value);next.close()
+ }
 }
