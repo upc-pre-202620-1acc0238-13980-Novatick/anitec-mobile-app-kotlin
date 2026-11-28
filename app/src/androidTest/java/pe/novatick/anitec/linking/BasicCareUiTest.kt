@@ -24,6 +24,9 @@ class BasicCareUiTest {
   private val base=DebugLinkingRepository();var posts=0;var record:BasicCare?=null
   override suspend fun animal(farmerId:String,animalId:String)=base.animal(farmerId,animalId).copy(recentCare=record?.let{listOf(CareSummary(it.id,it.title,it.vetName,it.date,it.description))} ?: emptyList())
   override suspend fun createCare(farmerId:String,input:NewBasicCare):BasicCare{posts++;return BasicCare("90000000-0000-4000-8000-000000000001",input.animalId,input.title,input.description,input.date,DebugLinkingRepository.VET,"QA Vet").also{record=it}}
+  override suspend fun medicalHistory(animalId: String) = listOfNotNull(record?.takeIf { it.animalId == animalId }?.let {
+   CareSummary(it.id, it.title, it.vetName, it.date, it.description)
+  })
   override suspend fun care(id:String,animalId:String)=record!!.also{assertEquals(id,it.id);assertEquals(animalId,it.animalId)}
  }
  private lateinit var context:android.content.Context
@@ -52,7 +55,12 @@ class BasicCareUiTest {
   repo.record=BasicCare("90000000-0000-4000-8000-000000000001",animal,"Consulta QA","Descripción visible al propietario.","2020-02-29",DebugLinkingRepository.VET,"QA Vet")
   val livestock=object:LivestockRepository by base{override suspend fun animal(id:String)=base.animal(id).copy(recentCare=listOf(CareSummary(repo.record!!.id,repo.record!!.title,"QA Vet","2020-02-29","Summary")))}
   open(language){val vm=remember{LivestockViewModel(livestock)};DisposableEffect(vm){vm.start();onDispose{vm.close()}};LivestockShell(vm,Profile(base.owner,"qa@example.invalid","QA","Owner",Role.GANADERO),{},repo)}
-  compose.onNodeWithText(text(R.string.ls_tab_cattle)).performClick();compose.onNodeWithText("Luna").performScrollTo().performClick();compose.onNodeWithTag("care_latest").performScrollTo().performClick()
+  compose.onNodeWithText(text(R.string.ls_tab_cattle)).performClick()
+  compose.onNodeWithText("Luna").performScrollTo().performClick()
+  compose.onNodeWithTag("care_view_all").performScrollTo().performClick()
+  val historyTag = "care_history_" + repo.record!!.id
+  compose.waitUntil(8000){compose.onAllNodesWithTag(historyTag).fetchSemanticsNodes().isNotEmpty()}
+  compose.onNodeWithTag(historyTag).performClick()
   compose.waitUntil(8000){compose.onAllNodesWithText("Descripción visible al propietario.").fetchSemanticsNodes().isNotEmpty()}
   compose.onNodeWithTag("care_save").assertDoesNotExist();compose.onNodeWithTag("vet_care_unavailable").assertDoesNotExist();compose.runOnIdle{assertEquals(0,repo.posts)}
  }

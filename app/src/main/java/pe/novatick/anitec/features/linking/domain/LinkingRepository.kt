@@ -1,5 +1,14 @@
 package pe.novatick.anitec.features.linking.domain
 
+import pe.novatick.anitec.features.livestock.domain.AnimalSummary
+
+internal fun List<AnimalSummary>.filterLinkedAnimals(search: String, speciesId: String?, farmId: String?): List<AnimalSummary> =
+    filter { animal ->
+        (farmId == null || animal.farmId == farmId) &&
+            (speciesId == null || animal.speciesId == speciesId) &&
+            (animal.code.contains(search, ignoreCase = true) || animal.name.orEmpty().contains(search, ignoreCase = true))
+    }
+
 data class Invitation(val id: String,val email: String,val status: String,val delivery: String,val sentAt: String)
 data class PendingInvitation(val id: String,val farmerName: String,val sentDate: String)
 data class VetLink(val id: String,val farmerId: String,val farmerName: String,val vetId: String,val vetName: String,val linkedAt: String)
@@ -7,6 +16,8 @@ data class LinkedFarm(val id: String,val name: String,val animals: Long)
 data class LinkedFarmer(val id: String,val name: String,val animals: Long,val farms: List<LinkedFarm>)
 data class LinkCapacity(val vetId: String,val allowed: Int,val active: Int,val revision: Long)
 interface LinkingRepository {
+    suspend fun medicalHistory(animalId: String): List<pe.novatick.anitec.features.livestock.domain.CareSummary> =
+        throw pe.novatick.anitec.features.auth.domain.AuthFailure(pe.novatick.anitec.features.auth.domain.AuthProblem.FORBIDDEN)
     suspend fun createCare(farmerId:String,input:pe.novatick.anitec.features.livestock.domain.NewBasicCare):pe.novatick.anitec.features.livestock.domain.BasicCare = throw pe.novatick.anitec.features.auth.domain.AuthFailure(pe.novatick.anitec.features.auth.domain.AuthProblem.FORBIDDEN)
     suspend fun care(id:String,animalId:String):pe.novatick.anitec.features.livestock.domain.BasicCare = throw pe.novatick.anitec.features.auth.domain.AuthFailure(pe.novatick.anitec.features.auth.domain.AuthProblem.FORBIDDEN)
     suspend fun upcomingVisits(): List<FarmerVisit> = throw pe.novatick.anitec.features.auth.domain.AuthFailure(pe.novatick.anitec.features.auth.domain.AuthProblem.FORBIDDEN)

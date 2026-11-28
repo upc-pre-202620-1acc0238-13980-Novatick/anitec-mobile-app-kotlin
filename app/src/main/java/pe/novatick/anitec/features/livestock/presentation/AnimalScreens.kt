@@ -42,7 +42,7 @@ import pe.novatick.anitec.ui.theme.Poppins
     }
 }
 @Composable internal fun AnimalPage(title: String,back: ()->Unit,busy: Boolean=false,subtitle: String?=null,
-    centered: Boolean=false,actions: (@Composable ()->Unit)?=null,pinnedHeader: Boolean=false,titleSize:Int=21,content: @Composable ColumnScope.()->Unit) {
+    centered: Boolean=false,actions: (@Composable ()->Unit)?=null,pinnedHeader: Boolean=false,titleSize:Int=21,scrollContent:Boolean=true,content: @Composable ColumnScope.()->Unit) {
     BackHandler(busy) {}
     val heading: @Composable ()->Unit = {
             Row(Modifier.fillMaxWidth().heightIn(min=62.dp).testTag("animal_header"),verticalAlignment=Alignment.CenterVertically) {
@@ -60,7 +60,7 @@ import pe.novatick.anitec.ui.theme.Poppins
         Box(Modifier.fillMaxWidth().height(30.dp).clip(CattleHeaderShape).background(pe.novatick.anitec.ui.theme.PrimaryGreenAccent))
         if(pinnedHeader) {
             Column(Modifier.padding(horizontal=28.dp,vertical=8.dp)) {heading()}
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal=28.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(13.dp),content=content)
+            Column(Modifier.weight(1f).then(if(scrollContent) Modifier.verticalScroll(rememberScrollState()) else Modifier).padding(horizontal=28.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(13.dp),content=content)
         } else Column(Modifier.padding(horizontal=28.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(13.dp)) {heading();content()}
     }
 }

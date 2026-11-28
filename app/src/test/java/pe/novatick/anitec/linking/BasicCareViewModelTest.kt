@@ -57,4 +57,43 @@ class BasicCareViewModelTest {
   val next=BasicCareViewModel(f,Role.GANADERO,dispatcher);gate.complete(Unit);advanceUntilIdle()
   assertEquals(BasicCareState(),old.state.value);assertEquals(BasicCareState(),next.state.value);next.close()
  }
+ @Test fun historyRetryDistinguishesDenialFromEmptyAndSaveInvalidatesSnapshot()=runTest {
+  var denied=true
+  val f=object:Fake(){
+   override suspend fun medicalHistory(animalId:String):List<CareSummary>{
+    if(denied)throw AuthFailure(AuthProblem.FORBIDDEN,403)
+    return if(calls==0)emptyList() else listOf(CareSummary("care","Control","V","2020-02-29","Description"))
+   }
+  }
+  val vm=BasicCareViewModel(f,Role.VETERINARIO,StandardTestDispatcher(testScheduler))
+  fill(vm)
+  val animal=vm.state.value.animalId
+  vm.readHistory(animal);advanceUntilIdle()
+  assertNull(vm.history.value.result.value)
+  assertEquals(403,vm.history.value.result.error!!.status)
+  denied=false
+  vm.readHistory(animal);advanceUntilIdle()
+  assertEquals(emptyList<CareSummary>(),vm.history.value.result.value)
+  vm.save();advanceUntilIdle();vm.consumeSaved()
+  assertNull(vm.history.value.animalId)
+  vm.readHistory(animal);advanceUntilIdle()
+  assertEquals("care",vm.history.value.result.value!!.single().id)
+  vm.close()
+ }
+ @Test fun supersededAndClosedHistoryReadsCannotPublishOldData()=runTest {
+  val gate=CompletableDeferred<Unit>()
+  val f=object:Fake(){
+   override suspend fun medicalHistory(animalId:String):List<CareSummary>{
+    if(animalId!="current")withContext(NonCancellable){gate.await()}
+    return listOf(CareSummary(animalId,animalId,"V","2020-02-29","Test"))
+   }
+  }
+  val vm=BasicCareViewModel(f,Role.GANADERO,StandardTestDispatcher(testScheduler))
+  vm.readHistory("old");runCurrent()
+  vm.readHistory("current");runCurrent()
+  gate.complete(Unit);advanceUntilIdle()
+  assertEquals("current",vm.history.value.result.value!!.single().id)
+  vm.readHistory("stale");vm.close();advanceUntilIdle()
+  assertEquals(BasicCareViewModel.History(),vm.history.value)
+ }
 }

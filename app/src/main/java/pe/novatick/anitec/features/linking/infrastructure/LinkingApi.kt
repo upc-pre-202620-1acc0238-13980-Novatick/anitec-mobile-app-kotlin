@@ -16,6 +16,8 @@ import retrofit2.http.*
 @Keep data class RespondRequest(val action: String)
 interface LinkingApi {
  @POST("attentions") suspend fun createCare(@Header("Authorization") jwt:String,@Body request:BasicCareRequest):Response<Envelope<BasicCareDto>>
+ @GET("animals/{animalId}/medical-history")
+ suspend fun medicalHistory(@Header("Authorization") jwt: String, @Path("animalId") animalId: String): Response<Envelope<List<BasicCareDto>>>
  @GET("attentions/{id}") suspend fun care(@Header("Authorization") jwt:String,@Path("id") id:String):Response<Envelope<BasicCareDto>>
  @GET("visits/upcoming") suspend fun upcomingVisits(@Header("Authorization") jwt:String):Response<Envelope<List<FarmerVisitDto>>>
  @POST("visits/schedule") suspend fun scheduleVisit(@Header("Authorization") jwt:String,@Body request:ScheduleVisitRequest):Response<Envelope<ScheduledVisitDto>>
@@ -29,7 +31,14 @@ interface LinkingApi {
  @DELETE("vet-links/{id}") suspend fun revoke(@Header("Authorization") jwt: String,@Path("id") id: String): Response<Envelope<RevokeDto>>
 }
 @Keep data class BasicCareRequest(val animalId:String,val title:String,val description:String,val attentionDate:String)
-@Keep data class BasicCareDto(val id:String?,val animalId:String?,val title:String?,val description:String?,val attentionDate:String?,val veterinarianId:String?,val vetName:String?)
+@Keep data class BasicCareDto(val id:String?,val animalId:String?,val title:String?,val description:String?,val attentionDate:String?,val veterinarianId:String?,val vetName:String?,
+ val treatments: List<CareTreatmentDto>?,
+ val vaccinations: List<CareVaccinationDto>?,
+ val instructions: CareInstructionsDto?,
+)
+@Keep data class CareTreatmentDto(val description: String?, val date: String?)
+@Keep data class CareVaccinationDto(val name: String?, val date: String?)
+@Keep data class CareInstructionsDto(val content: String?, val authorName: String?, val updatedAt: String?)
 @Keep data class FarmerVisitDto(val id:String?,val animalId:String?,val animalName:String?,val animalCode:String?,val farmerName:String?,val vetName:String?,val type:String?,val scheduledAt:String?,val status:String?,val reason:String?)
 @Keep data class HomeVisitDto(val id:String?,val animalId:String?,val animalName:String?,val farmerId:String?,val farmerName:String?,val type:String?,val scheduledAt:String?,val status:String?,val reason:String?)
 @Keep data class ScheduleVisitRequest(val animalId:String,val scheduledAt:String,val reason:String)

@@ -9,11 +9,35 @@ import java.util.*
 
 data class BasicCareState(val animalId:String="",val farmerId:String="",val title:String="",val description:String="",val date:String="",
  val attempted:Boolean=false,val busy:Boolean=false,val uncertain:Boolean=false,val error:AuthFailure?=null,val saved:BasicCare?=null,
- val detail:BasicCare?=null,val reading:Boolean=false,val readError:AuthFailure?=null)
+ val detail:BasicCare?=null,val reading:Boolean=false,val readError:AuthFailure?=null,val readTarget:Pair<String,String>?=null)
 class BasicCareViewModel(private val repo:LinkingRepository,private val role:Role,dispatcher:CoroutineDispatcher=Dispatchers.Main.immediate){
+ data class History(val animalId: String? = null, val result: LinkRead<List<CareSummary>> = LinkRead())
+
+ private val historyState = MutableStateFlow(History())
+ val history = historyState.asStateFlow()
+ private var historyRequest: Job? = null
+ private var detailRequest: Job? = null
+
+ fun readHistory(animalId: String) {
+  if (!job.isActive) return
+  historyRequest?.cancel()
+  historyState.value = History(animalId, LinkRead(loading = true))
+  historyRequest = scope.launch {
+   val result = try {
+    LinkRead(value = repo.medicalHistory(animalId))
+   } catch (e: CancellationException) {
+    throw e
+   } catch (e: Exception) {
+    LinkRead(error = e as? AuthFailure ?: AuthFailure(AuthProblem.INVALID_RESPONSE))
+   }
+   ensureActive()
+   historyState.value = History(animalId, result)
+  }
+ }
+
  private val job=SupervisorJob();private val scope=CoroutineScope(job+dispatcher);private var formTicket=0L;private var readTicket=0L
  private val mutable=MutableStateFlow(BasicCareState());val state=mutable.asStateFlow()
- fun close(){job.cancel();mutable.value=BasicCareState()}
+ fun close(){job.cancel();mutable.value=BasicCareState();historyState.value=History()}
  fun begin(farmer:String,animal:String){if(!job.isActive || state.value.busy || state.value.uncertain)return;formTicket++;mutable.value=BasicCareState(animalId=animal,farmerId=farmer,date=SimpleDateFormat("yyyy-MM-dd",Locale.US).format(Date()))}
  private fun edit(change:(BasicCareState)->BasicCareState){if(job.isActive && !state.value.busy && !state.value.uncertain)mutable.update{change(it).copy(error=null)}}
  fun title(value:String)=edit{it.copy(title=value)};fun description(value:String)=edit{it.copy(description=value)};fun date(value:String)=edit{it.copy(date=value)}
@@ -25,8 +49,14 @@ class BasicCareViewModel(private val repo:LinkingRepository,private val role:Rol
    catch(e:CancellationException){throw e}catch(e:Exception){ensureActive();if(ticket==formTicket){val error=e as? AuthFailure ?: AuthFailure(AuthProblem.INVALID_RESPONSE);mutable.update{it.copy(busy=false,error=error,uncertain=error.problem in listOf(AuthProblem.NETWORK,AuthProblem.INVALID_RESPONSE) || error.status>=500)}}}
   }
  }
- fun consumeSaved(){mutable.update{it.copy(saved=null)}}
- fun read(id:String,animal:String){if(!job.isActive)return;val ticket=++readTicket;mutable.update{it.copy(detail=null,reading=true,readError=null)};scope.launch{
+ fun consumeSaved() {
+  if (mutable.value.saved != null) {
+   historyRequest?.cancel()
+   historyState.value = History()
+  }
+  mutable.update { it.copy(saved = null) }
+ }
+ fun read(id:String,animal:String){if(!job.isActive)return;val ticket=++readTicket;detailRequest?.cancel();mutable.update{it.copy(detail=null,reading=true,readError=null,readTarget=animal to id)};detailRequest=scope.launch{
   try{val result=repo.care(id,animal);ensureActive();if(ticket==readTicket)mutable.update{it.copy(detail=result,reading=false)}}
   catch(e:CancellationException){throw e}catch(e:Exception){ensureActive();if(ticket==readTicket)mutable.update{it.copy(reading=false,readError=e as? AuthFailure ?: AuthFailure(AuthProblem.INVALID_RESPONSE))}}
  }}

@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.graphics.Color
@@ -215,20 +216,35 @@ import pe.novatick.anitec.ui.theme.*
  }
 }
 @Composable fun LinkedAnimalsScreen(vm: LinkingViewModel,farmer: String,back: ()->Unit,onAnimal: (String)->Unit){
- val s by vm.state.collectAsState();var search by remember(farmer){mutableStateOf("")};var species by remember(farmer){mutableStateOf<String?>(null)}
+ val s by vm.state.collectAsState()
+ var search by rememberSaveable(farmer) { mutableStateOf("") }
+ var species by rememberSaveable(farmer) { mutableStateOf<String?>(null) }
+ var farm by rememberSaveable(farmer) { mutableStateOf<String?>(null) }
  LaunchedEffect(farmer){vm.readAnimals(farmer)}
  AnimalPage(stringResource(R.string.lk_their_animals),back,subtitle=s.farmers.value?.firstOrNull {it.id==farmer}?.name ?: stringResource(R.string.lk_farmer_sub)){
   LsSearch(search,{search=it})
   LinkReadContent(if(s.farmerContext==farmer)s.animals else LinkRead(loading=true),vm,{vm.readAnimals(farmer)}){inventory->
+   val allFarms = stringResource(R.string.lk_all_farms)
+   val selectedFarm = farm?.takeIf(inventory.farmNames::containsKey)
+   LaunchedEffect(inventory.farmNames) {
+    if (farm != null && selectedFarm == null) farm = null
+   }
+   val farmChoices = listOf("" to allFarms) + inventory.farmNames.map { (id, name) -> id to name }
+   AnimalSelect(
+    stringResource(R.string.lk_filter_farm), selectedFarm?.let(inventory.farmNames::get) ?: allFarms,
+    farmChoices, true, "linked_farm_filter",
+   ) { farm = it.ifEmpty { null } }
    val speciesList=inventory.content.distinctBy {it.speciesId}
    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(7.dp)){
     FilterChip(species==null,{species=null},shape=RoundedCornerShape(20.dp),border=BorderStroke(0.dp,Color.Transparent),colors=FilterChipDefaults.filterChipColors(containerColor=LivestockVisuals.Pale,selectedContainerColor=PrimaryGreenMedium),label={LsText(stringResource(R.string.lk_all_species),size=10,color=if(species==null) Color.White else NeutralSlate)})
     speciesList.forEach {item->FilterChip(species==item.speciesId,{species=item.speciesId},shape=RoundedCornerShape(20.dp),border=BorderStroke(0.dp,Color.Transparent),colors=FilterChipDefaults.filterChipColors(containerColor=LivestockVisuals.Pale,selectedContainerColor=PrimaryGreenMedium),label={LsText(item.species,size=10,color=if(species==item.speciesId) Color.White else NeutralSlate)})}
    }
-   val found=inventory.content.filter {(species==null || it.speciesId==species) && (it.code.contains(search,true) || it.name.orEmpty().contains(search,true))}
+   val found = inventory.content.filterLinkedAnimals(search, species, selectedFarm)
    LsText(pluralStringResource(R.plurals.ls_result_count,found.size,found.size),size=11,color=NeutralSlate)
    if(found.isEmpty())LsNotice(stringResource(R.string.lk_no_animals))
-   found.forEach {item->AnimalRow(item,onClick={onAnimal(item.id)})}
+   found.forEach { animal ->
+    AnimalRow(animal, onClick = { onAnimal(animal.id) }, farmName = inventory.farmNames[animal.farmId])
+   }
   }
  }
 }
@@ -236,14 +252,14 @@ import pe.novatick.anitec.ui.theme.*
  val read=if(s.farmerContext==farmer && s.observationAnimalId==id)s.observations else LinkRead(loading=true)
  return ReadState(read.value,read.loading,read.error!=null)
 }
-@Composable fun LinkedAnimalDetailScreen(vm: LinkingViewModel,farmer: String,id: String,back: ()->Unit,allObservations: ()->Unit={},visitVm:VisitsViewModel?=null,registerCare:(()->Unit)?=null,openCare:(String)->Unit={}){
+@Composable fun LinkedAnimalDetailScreen(vm: LinkingViewModel,farmer: String,id: String,back: ()->Unit,allObservations: ()->Unit={},visitVm:VisitsViewModel?=null,registerCare:(()->Unit)?=null,openCare:(String)->Unit={},openHistory:()->Unit={}){
  var scheduleOpen by remember(farmer,id){mutableStateOf(false)}
  if(scheduleOpen && visitVm!=null)VisitScheduleModal(visitVm,{scheduleOpen=false},{scheduleOpen=false;vm.readToday()})
  val s by vm.state.collectAsState();LaunchedEffect(farmer,id){vm.readAnimal(farmer,id);vm.readObservations(farmer,id)}
  val read=if(s.farmerContext==farmer && s.animalId==id)s.animal else LinkRead(loading=true)
  AnimalDetailScreen(LivestockState(animalDetailId=id,animalDetail=ReadState(read.value,read.loading,read.error!=null),animalDetailError=read.error),back,{vm.readAnimal(farmer,id);vm.readObservations(farmer,id)},readOnly=true,observations={
   ReadOnlyObservationSection(observationRead(s,farmer,id),{vm.readObservations(farmer,id)},allObservations)
-  read.value?.let{LatestCareSection(it,openCare)}
+  read.value?.let{LatestCareSection(it,openCare,openHistory)}
   Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){
    VeterinaryShortcut(stringResource(R.string.lk_schedule),R.drawable.link_schedule_official,Modifier.weight(1f).testTag("vet_schedule_unavailable"),available=visitVm!=null,onClick={visitVm?.begin(farmer,id);scheduleOpen=true})
    VeterinaryShortcut(stringResource(R.string.lk_record_care),R.drawable.link_attention_official,Modifier.weight(1f).testTag("vet_care_unavailable"),available=registerCare!=null,onClick={registerCare?.invoke()})
@@ -277,8 +293,14 @@ import pe.novatick.anitec.ui.theme.*
    composable("invitations"){VeterinarianInvitationsScreen(vm){nav.popBackStack()}}
    composable("farmer/{id}"){LinkedFarmerDetailScreen(vm,it.arguments?.getString("id").orEmpty(),{nav.popBackStack()},{nav.navigate("farmer/${it.arguments?.getString("id")}/animals")})}
    composable("farmer/{id}/animals"){entry->val owner=entry.arguments?.getString("id").orEmpty();LinkedAnimalsScreen(vm,owner,{nav.popBackStack()}){nav.navigate("farmer/$owner/animal/$it")}}
-   composable("farmer/{id}/animal/{animalId}"){entry->val owner=entry.arguments?.getString("id").orEmpty();val animal=entry.arguments?.getString("animalId").orEmpty();LinkedAnimalDetailScreen(vm,owner,animal,{nav.popBackStack()},{nav.navigate("farmer/$owner/animal/$animal/observations")},visits,{nav.navigate("care_new/$owner/$animal")},{nav.navigate("care/$animal/$it")})}
+   composable("farmer/{id}/animal/{animalId}"){entry->val owner=entry.arguments?.getString("id").orEmpty();val animal=entry.arguments?.getString("animalId").orEmpty();LinkedAnimalDetailScreen(vm,owner,animal,{nav.popBackStack()},{nav.navigate("farmer/$owner/animal/$animal/observations")},visits,{nav.navigate("care_new/$owner/$animal")},{nav.navigate("care/$animal/$it")},{care.readHistory(animal);nav.navigate("care_history/$animal"){launchSingleTop=true}})}
    composable("care_new/{owner}/{animal}"){entry->val owner=entry.arguments?.getString("owner").orEmpty();val animal=entry.arguments?.getString("animal").orEmpty();BasicCareForm(care,owner,animal,{nav.popBackStack()}){vm.readAnimal(owner,animal);nav.popBackStack()}}
+   composable("care_history/{animal}") { entry ->
+    val animal = entry.arguments?.getString("animal").orEmpty()
+    MedicalHistoryScreen(care, animal, s.animal.value, { nav.popBackStack() }) {
+     nav.navigate("care/$animal/$it") { launchSingleTop = true }
+    }
+   }
    composable("care/{animal}/{id}"){entry->BasicCareDetail(care,entry.arguments?.getString("animal").orEmpty(),entry.arguments?.getString("id").orEmpty(),s.animal.value){nav.popBackStack()}}
    composable("farmer/{id}/animal/{animalId}/observations"){entry->LinkedObservationsScreen(vm,entry.arguments?.getString("id").orEmpty(),entry.arguments?.getString("animalId").orEmpty()){nav.popBackStack()}}
    composable("profile"){pe.novatick.anitec.ui.screens.home.RancherProfileScreen(userName=profile.name+" "+profile.lastName,userEmail=profile.email,userRole=stringResource(R.string.lk_veterinarian_role),onLogoutClick=logout)}

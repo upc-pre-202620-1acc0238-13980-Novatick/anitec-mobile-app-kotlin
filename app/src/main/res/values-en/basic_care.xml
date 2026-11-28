@@ -13,4 +13,18 @@
  <string name="care_summary">Attention summary</string>
  <string name="care_related">Related attention</string>
  <string name="care_date_read">Date</string>
+ <string name="care_history">Care history</string>
+ <string name="care_view_all">View all</string>
+ <string name="care_animal_context">%1$s · %2$s</string>
+ <string name="care_byline">%1$s · %2$s</string>
+ <string name="care_vet">Attending veterinarian</string>
+ <string name="care_treatments">Treatments provided</string>
+ <string name="care_no_treatments">No treatments were recorded for this visit.</string>
+ <string name="care_vaccinations">Vaccinations administered</string>
+ <string name="care_no_vaccinations">No vaccinations were recorded for this visit.</string>
+ <string name="care_instructions">Care instructions</string>
+ <string name="care_no_instructions">No care instructions were recorded for this visit.</string>
+ <string name="care_view_all_count">View all (%1$d)</string>
+ <string name="lk_all_farms">All farms</string>
+ <string name="lk_filter_farm">Farm</string>
 </resources>

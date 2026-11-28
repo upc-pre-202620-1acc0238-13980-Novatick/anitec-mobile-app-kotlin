@@ -5,7 +5,11 @@ data class Farm(val id: String,val name: String,val location: String?,val ownerI
 data class Species(val id: String,val name: String,val description: String?,val photoUrl: String?)
 data class AnimalSummary(val id: String,val code: String,val name: String?,val species: String,val speciesId: String,
     val status: AnimalStatus,val farmId: String,val ownerId: String,val version: Long)
-data class Inventory(val totalActive: Long,val content: List<AnimalSummary>)
+data class Inventory(
+    val totalActive: Long,
+    val content: List<AnimalSummary>,
+    val farmNames: Map<String, String> = emptyMap(),
+)
 data class Capacity(val ownerId: String,val allowedAnimals: Long,val activeAnimals: Long,val lastPlanRevision: Long) {
     val remaining: Long get()=(allowedAnimals-activeAnimals).coerceAtLeast(0)
 }

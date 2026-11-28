@@ -35,7 +35,7 @@ import pe.novatick.anitec.features.linking.presentation.*
     DisposableEffect(visits){onDispose{visits?.close()}}
     val nav=rememberNavController();val entry by nav.currentBackStackEntryAsState()
     val selectVisit:(pe.novatick.anitec.features.linking.domain.FarmerVisit)->Unit={nav.navigate("farmer_visit/${it.visit.id}")}
-    val tab=when(entry?.destination?.route) { "cattle","animal_register","animal/{id}","animal/{id}/edit","animal/{id}/observations","animal/{id}/observation/new"->RancherTab.CATTLE;"profile"->RancherTab.PROFILE;"vets","invite_vet"->RancherTab.VETS;else->RancherTab.HOME }
+    val tab=when(entry?.destination?.route) { "cattle","animal_register","animal/{id}","animal/{id}/edit","animal/{id}/observations","animal/{id}/observation/new","care_history/{animal}","care/{animal}/{id}"->RancherTab.CATTLE;"profile"->RancherTab.PROFILE;"vets","invite_vet"->RancherTab.VETS;else->RancherTab.HOME }
     val obs by vm.observations.uiState.collectAsState();val state by vm.uiState.collectAsState();val type=MaterialTheme.typography
     val labels=mapOf(RancherTab.HOME to stringResource(R.string.ls_tab_home),RancherTab.CATTLE to stringResource(R.string.ls_tab_cattle),
         RancherTab.VETS to stringResource(R.string.ls_tab_vets),RancherTab.PROFILE to stringResource(R.string.ls_tab_profile))
@@ -61,8 +61,16 @@ import pe.novatick.anitec.features.linking.presentation.*
                     edit={vm.beginMutation();nav.navigate("animal/$id/edit")},deactivate=vm::deactivateAnimal,
                     reloadMutation={vm.reloadMutation(id)},consumeMutation=vm::consumeMutation,observations={animalId ->
                         ObservationSection(animalId,obs,vm.observations,{nav.navigate("animal/$id/observations")},{vm.observations.begin();nav.navigate("animal/$id/observation/new")})
-                        if(care!=null)selected.animalDetail.value?.let{LatestCareSection(it){attention->nav.navigate("care/$id/$attention")}}
+                        if(care!=null)selected.animalDetail.value?.let{LatestCareSection(it,{attention->nav.navigate("care/$id/$attention")},{care.readHistory(id);nav.navigate("care_history/$id"){launchSingleTop=true}})}
                     })
+            }
+            composable("care_history/{animal}") { entry ->
+                val animal = entry.arguments?.getString("animal").orEmpty()
+                care?.let {
+                    MedicalHistoryScreen(it, animal, state.animalDetail.value, { nav.popBackStack() }) { attention ->
+                        nav.navigate("care/$animal/$attention") { launchSingleTop = true }
+                    }
+                }
             }
             composable("care/{animal}/{id}"){entry->care?.let{BasicCareDetail(it,entry.arguments?.getString("animal").orEmpty(),entry.arguments?.getString("id").orEmpty(),state.animalDetail.value){nav.popBackStack()}}}
             composable("animal/{id}/edit") {back -> val id=back.arguments?.getString("id").orEmpty()
@@ -138,7 +146,7 @@ import pe.novatick.anitec.features.linking.presentation.*
 @Composable private fun stateName(status: AnimalStatus): String = stringResource(when(status) {
     AnimalStatus.ACTIVO->R.string.ls_active;AnimalStatus.INACTIVO->R.string.ls_inactive;AnimalStatus.VENDIDO->R.string.ls_sold;AnimalStatus.FALLECIDO->R.string.ls_dead
 })
-@Composable internal fun AnimalRow(animal: AnimalSummary,speciesName: String=animal.species,onClick: (()->Unit)?=null) {
+@Composable internal fun AnimalRow(animal: AnimalSummary,speciesName: String=animal.species,onClick: (()->Unit)?=null,farmName: String?=null) {
     val background=when(animal.status) {AnimalStatus.ACTIVO->LivestockVisuals.Mint;AnimalStatus.INACTIVO->LivestockVisuals.Pale;AnimalStatus.VENDIDO->Color(0xFFFFF7DF);AnimalStatus.FALLECIDO->Color(0xFFFFF0F0)}
     val foreground=when(animal.status) {AnimalStatus.ACTIVO->PrimaryGreen;AnimalStatus.INACTIVO->LivestockVisuals.Secondary;AnimalStatus.VENDIDO->Color(0xFF806014);AnimalStatus.FALLECIDO->Color(0xFFAE4141)}
     Surface(Modifier.fillMaxWidth().testTag("animal_${animal.id}").then(if(onClick!=null) Modifier.clickable(onClick=onClick) else Modifier),shape=RoundedCornerShape(15.dp),color=Color.White,border=BorderStroke(1.dp,LivestockVisuals.Border)) {
@@ -150,6 +158,10 @@ import pe.novatick.anitec.features.linking.presentation.*
                 Text(animal.name?.takeIf(String::isNotBlank) ?: animal.code,fontFamily=Poppins,fontSize=13.sp,fontWeight=FontWeight.SemiBold,
                     color=LivestockVisuals.Ink,maxLines=1,overflow=TextOverflow.Ellipsis)
                 Text(animal.code+" - "+animal.species,fontFamily=Poppins,fontSize=11.sp,color=LivestockVisuals.Secondary,maxLines=1,overflow=TextOverflow.Ellipsis)
+                farmName?.let {
+                    Text(it, fontFamily = Poppins, fontSize = 10.sp, color = LivestockVisuals.Secondary,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
             LsText(stringResource(when(animal.status) { AnimalStatus.ACTIVO->R.string.ls_badge_active;AnimalStatus.INACTIVO->R.string.ls_badge_inactive;AnimalStatus.VENDIDO->R.string.ls_badge_sold;AnimalStatus.FALLECIDO->R.string.ls_badge_dead }),Modifier.background(background,RoundedCornerShape(10.dp)).padding(horizontal=8.dp,vertical=5.dp),size=10,bold=true,color=foreground)
             if(onClick!=null) Icon(painterResource(R.drawable.ls_chevron_official),null,tint=Color.Unspecified,modifier=Modifier.size(8.25.dp,14.5.dp))
