@@ -5,7 +5,7 @@
  <string name="care_date">Date *</string>
  <string name="care_reason">Reason *</string>
  <string name="care_description">Description *</string>
- <string name="care_form_sub">Record the attention provided to this animal</string>
+ <string name="care_form_sub">Save the care record and its instructions</string>
  <string name="care_save">Save attention</string>
  <string name="care_invalid">Check this field. The reason allows up to 150 characters and the date cannot be in the future.</string>
  <string name="care_uncertain">The result could not be confirmed. Do not submit again: return to the animal and check with the person responsible before another attempt.</string>
@@ -27,4 +27,12 @@
  <string name="care_view_all_count">View all (%1$d)</string>
  <string name="lk_all_farms">All farms</string>
  <string name="lk_filter_farm">Farm</string>
+ <string name="care_animal">Animal *</string>
+ <string name="care_description_hint">Describe the care provided</string>
+ <string name="care_farmer">Farmer *</string>
+ <string name="care_no_farmers">There are no linked farmers.</string>
+ <string name="care_reason_hint">E.g. General checkup</string>
+ <string name="care_select_animal">Select animal</string>
+ <string name="care_select_farmer">Select farmer</string>
+ <string name="care_target_required">Select the farmer and animal.</string>
 </resources>

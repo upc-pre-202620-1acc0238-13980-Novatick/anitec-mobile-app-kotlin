@@ -96,4 +96,37 @@ class BasicCareViewModelTest {
   vm.readHistory("stale");vm.close();advanceUntilIdle()
   assertEquals(BasicCareViewModel.History(),vm.history.value)
  }
+ @Test fun changingFarmerClearsSelectionAndRejectsStaleInventory()=runTest {
+  val oldGate=CompletableDeferred<Unit>()
+  val firstAnimal="60000000-0000-4000-8000-000000000001"
+  val secondAnimal="60000000-0000-4000-8000-000000000002"
+  val f=object:Fake() {
+   var storedOwner:String?=null
+   override suspend fun farmers()=listOf(LinkedFarmer("first","First",1,emptyList()),LinkedFarmer("second","Second",1,emptyList()),LinkedFarmer("slow","Slow",1,emptyList()))
+   override suspend fun animals(farmerId:String):Inventory {
+    if(farmerId=="slow") withContext(NonCancellable){oldGate.await()}
+    val key=if(farmerId=="second") secondAnimal else firstAnimal
+    return Inventory(1,listOf(AnimalSummary(key,"QA","QA","Bovino","species",AnimalStatus.ACTIVO,"farm",farmerId,1)),mapOf("farm" to "Finca QA"))
+   }
+   override suspend fun createCare(farmerId:String,input:NewBasicCare):BasicCare {
+    storedOwner=farmerId
+    return super.createCare(farmerId,input)
+   }
+  }
+  val vm=BasicCareViewModel(f,Role.VETERINARIO,StandardTestDispatcher(testScheduler))
+  vm.begin("","");advanceUntilIdle()
+  vm.title("Control");vm.description("Atención clínica")
+  vm.chooseFarmer("first");advanceUntilIdle()
+  vm.chooseAnimal(firstAnimal);assertEquals(firstAnimal,vm.state.value.animalId)
+  vm.chooseFarmer("slow");runCurrent();assertEquals("",vm.state.value.animalId)
+  vm.save();assertEquals(0,f.calls)
+  vm.chooseFarmer("second");advanceUntilIdle()
+  oldGate.complete(Unit);advanceUntilIdle()
+  assertEquals(secondAnimal,vm.selection.value.inventory.value!!.content.single().id)
+  assertEquals("Finca QA",vm.selection.value.inventory.value!!.farmNames["farm"])
+  vm.chooseAnimal(firstAnimal);assertEquals("",vm.state.value.animalId)
+  vm.chooseAnimal(secondAnimal);vm.save();vm.save();advanceUntilIdle()
+  assertEquals("second",f.storedOwner);assertEquals(secondAnimal,vm.state.value.saved!!.animalId);assertEquals(1,f.calls)
+  vm.close()
+ }
 }

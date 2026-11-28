@@ -5,7 +5,7 @@
  <string name="care_date">Fecha *</string>
  <string name="care_reason">Motivo *</string>
  <string name="care_description">Descripción *</string>
- <string name="care_form_sub">Registra la atención realizada al animal</string>
+ <string name="care_form_sub">Guarda la atención y sus indicaciones</string>
  <string name="care_save">Guardar atención</string>
  <string name="care_invalid">Revisa este campo. El motivo admite hasta 150 caracteres y la fecha no puede ser futura.</string>
  <string name="care_uncertain">No se confirmó el resultado. No repitas el registro: vuelve a la ficha y consulta al responsable antes de un nuevo intento.</string>
@@ -27,4 +27,12 @@
  <string name="care_view_all_count">Ver todas (%1$d)</string>
  <string name="lk_all_farms">Todas las fincas</string>
  <string name="lk_filter_farm">Finca</string>
+ <string name="care_animal">Animal *</string>
+ <string name="care_description_hint">Describe la atención realizada</string>
+ <string name="care_farmer">Ganadero *</string>
+ <string name="care_no_farmers">No hay ganaderos vinculados.</string>
+ <string name="care_reason_hint">Ej. Control general</string>
+ <string name="care_select_animal">Seleccionar animal</string>
+ <string name="care_select_farmer">Seleccionar ganadero</string>
+ <string name="care_target_required">Selecciona el ganadero y el animal.</string>
 </resources>

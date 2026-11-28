@@ -14,10 +14,13 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.*
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.*
 import pe.novatick.anitec.R
+import pe.novatick.anitec.features.linking.domain.visitLocalMillis
 import pe.novatick.anitec.features.livestock.domain.*
 import pe.novatick.anitec.features.livestock.presentation.*
 import pe.novatick.anitec.ui.theme.*
@@ -43,33 +46,123 @@ import java.util.*
   else -> HistoryCard(items.first(), tag = "care_latest") { open(items.first().id) }
  }
 }
-@Composable fun BasicCareForm(vm:BasicCareViewModel,farmer:String,animal:String,back:()->Unit,saved:()->Unit){
- val s by vm.state.collectAsState();LaunchedEffect(farmer,animal){vm.begin(farmer,animal)}
- LaunchedEffect(s.saved){if(s.saved!=null){vm.consumeSaved();saved()}}
- BackHandler(s.busy){}
- val locked=s.busy || s.uncertain
- var picker by remember{mutableStateOf(false)}
- if(picker)VisitDatePicker(System.currentTimeMillis(),{picker=false}){vm.date(SimpleDateFormat("yyyy-MM-dd",Locale.US).format(Date(it)));picker=false}
- AnimalPage(stringResource(R.string.lk_record_care),back,busy=s.busy,subtitle=stringResource(R.string.care_form_sub),pinnedHeader=true){
-  LsText(stringResource(R.string.care_date),size=12)
-  Surface(onClick={picker=true},enabled=!locked,modifier=Modifier.fillMaxWidth().testTag("care_date"),shape=RoundedCornerShape(13.dp),color=LivestockVisuals.Pale){
-   Row(Modifier.heightIn(min=48.dp).padding(horizontal=13.dp),verticalAlignment=Alignment.CenterVertically){
-    LsText(if(validCareDate(s.date))careDateLabel(s.date,LocalConfiguration.current.locales[0])else "",Modifier.weight(1f),size=12)
-    Icon(painterResource(R.drawable.link_calendar_official),null,Modifier.size(20.dp),tint=NeutralSlate)
+@Composable
+fun BasicCareForm(
+ vm: BasicCareViewModel,
+ farmer: String = "",
+ animal: String = "",
+ animalContext: AnimalDetail? = null,
+ back: () -> Unit,
+ saved: (String, String) -> Unit,
+) {
+ val s by vm.state.collectAsState()
+ val choices by vm.selection.collectAsState()
+ val selectTarget = farmer.isEmpty() && animal.isEmpty()
+ LaunchedEffect(farmer, animal) { vm.begin(farmer, animal) }
+ LaunchedEffect(s.saved) {
+  s.saved?.let { result ->
+   vm.consumeSaved()
+   saved(s.farmerId, result.animalId)
+  }
+ }
+ val locked = s.busy || s.uncertain
+ var picker by remember { mutableStateOf(false) }
+ if (picker) {
+  val initial = visitLocalMillis(s.date, "12:00") ?: System.currentTimeMillis()
+  VisitDatePicker(initial, { picker = false }) {
+   vm.date(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(it)))
+   picker = false
+  }
+ }
+ AnimalPage(stringResource(R.string.lk_record_care), back, busy = s.busy,
+  subtitle = stringResource(R.string.care_form_sub), pinnedHeader = true,
+ ) {
+  if (selectTarget) {
+   val farmers = choices.farmers.value.orEmpty()
+   val owner = farmers.firstOrNull { it.id == s.farmerId }
+   AnimalSelect(
+    stringResource(R.string.care_farmer), owner?.name ?: stringResource(R.string.care_select_farmer),
+    farmers.map { it.id to it.name }, !locked && farmers.isNotEmpty(), "care_farmer",
+    valueColor = if (owner == null) NeutralSlate else LivestockVisuals.Ink,
+    onSelect = vm::chooseFarmer,
+   )
+   if (choices.farmers.loading) LsLoading(stringResource(R.string.lk_loading))
+   if (choices.farmers.value?.isEmpty() == true) LsNotice(stringResource(R.string.care_no_farmers))
+   choices.farmers.error?.let {
+    LsNotice(animalFailureText(it), true)
+    LsAction(stringResource(R.string.lk_reload), vm::loadFarmers, enabled = !locked)
+   }
+   val inventory = choices.inventory.value
+   val animals = inventory?.content.orEmpty().map { candidate ->
+    val name = candidate.name?.takeIf(String::isNotBlank)
+    val nameAndCode = if (name == null) candidate.code else stringResource(R.string.care_byline, name, candidate.code)
+    val farm = inventory?.farmNames?.get(candidate.farmId)
+    candidate.id to if (farm == null) nameAndCode else stringResource(R.string.care_byline, nameAndCode, farm)
+   }
+   val chosen = animals.firstOrNull { it.first == s.animalId }
+   AnimalSelect(
+    stringResource(R.string.care_animal), chosen?.second ?: stringResource(R.string.care_select_animal),
+    animals, !locked && owner != null && animals.isNotEmpty(), "care_animal",
+    valueColor = if (chosen == null) NeutralSlate else LivestockVisuals.Ink,
+    onSelect = vm::chooseAnimal,
+   )
+   if (choices.inventory.loading) LsLoading(stringResource(R.string.lk_loading))
+   if (inventory?.content?.isEmpty() == true) LsNotice(stringResource(R.string.lk_no_animals))
+   choices.inventory.error?.let {
+    LsNotice(animalFailureText(it), true)
+    LsAction(stringResource(R.string.lk_reload), { vm.chooseFarmer(s.farmerId) }, enabled = !locked)
+   }
+   if (s.attempted && chosen == null) LsNotice(stringResource(R.string.care_target_required), true)
+  } else {
+   animalContext?.let { info ->
+    val name = info.name?.takeIf(String::isNotBlank)
+    val nameAndCode = if (name == null) info.code else stringResource(R.string.care_byline, name, info.code)
+    LsNotice(stringResource(R.string.care_byline, nameAndCode, info.farmName))
    }
   }
-  if(s.attempted && (!validCareDate(s.date) || s.date>SimpleDateFormat("yyyy-MM-dd",Locale.US).format(Date())))LsText(stringResource(R.string.care_invalid),size=11,color=MaterialTheme.colorScheme.error)
-  AnimalField(s.title,vm::title,stringResource(R.string.care_reason),"","care_title",if(s.attempted && (s.title.isBlank() || s.title.length>150))stringResource(R.string.care_invalid)else null,!locked)
-  LsText(stringResource(R.string.care_description),size=12)
-  BasicTextField(s.description,vm::description,enabled=!locked,textStyle=TextStyle(fontFamily=Poppins,fontSize=12.sp,color=LivestockVisuals.Ink),cursorBrush=SolidColor(PrimaryGreen),
-   modifier=Modifier.fillMaxWidth().heightIn(min=86.dp).background(LivestockVisuals.Pale,RoundedCornerShape(13.dp)).padding(13.dp).testTag("care_description"))
-  if(s.attempted && s.description.isBlank())LsText(stringResource(R.string.care_invalid),size=11,color=MaterialTheme.colorScheme.error)
-  s.error?.let{LsNotice(animalFailureText(it),true)}
-  if(s.uncertain)LsNotice(stringResource(R.string.care_uncertain),true)
-  if(s.busy)LsLoading(stringResource(R.string.lk_loading))
-  LsAction(stringResource(R.string.care_save),vm::save,Modifier.fillMaxWidth().testTag("care_save"),primary=true,enabled=!locked)
+  LsText(stringResource(R.string.care_date), size = 12)
+  Surface(onClick = { picker = true }, enabled = !locked, modifier = Modifier.fillMaxWidth().testTag("care_date"),
+   shape = RoundedCornerShape(13.dp), color = LivestockVisuals.Pale,
+  ) {
+   Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+    LsText(if (validCareDate(s.date)) careDateLabel(s.date, LocalConfiguration.current.locales[0]) else "",
+     Modifier.weight(1f), size = 12)
+    Icon(painterResource(R.drawable.link_calendar_official), null, Modifier.size(20.dp), tint = NeutralSlate)
+   }
+  }
+  if (s.attempted && (!validCareDate(s.date) || s.date > SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()))) {
+   LsText(stringResource(R.string.care_invalid), size = 11, color = MaterialTheme.colorScheme.error)
+  }
+  AnimalField(
+   s.title, vm::title, stringResource(R.string.care_reason), "", "care_title",
+   if (s.attempted && (s.title.isBlank() || s.title.length > 150)) stringResource(R.string.care_invalid) else null,
+   !locked, placeholder = stringResource(R.string.care_reason_hint),
+  )
+  val descriptionLabel = stringResource(R.string.care_description)
+  LsText(descriptionLabel, size = 12)
+  BasicTextField(
+   s.description, vm::description, enabled = !locked,
+   textStyle = TextStyle(fontFamily = Poppins, fontSize = 12.sp, color = LivestockVisuals.Ink),
+   cursorBrush = SolidColor(PrimaryGreen),
+   modifier = Modifier.fillMaxWidth().heightIn(min = 86.dp).background(LivestockVisuals.Pale, RoundedCornerShape(13.dp))
+    .padding(13.dp).testTag("care_description").semantics { contentDescription = descriptionLabel },
+   decorationBox = { editor ->
+    Box {
+     if (s.description.isEmpty()) LsText(stringResource(R.string.care_description_hint), size = 12, color = NeutralSlate)
+     editor()
+    }
+   },
+  )
+  if (s.attempted && s.description.isBlank()) LsText(stringResource(R.string.care_invalid), size = 11, color = MaterialTheme.colorScheme.error)
+  s.error?.let { LsNotice(animalFailureText(it), true) }
+  if (s.uncertain) LsNotice(stringResource(R.string.care_uncertain), true)
+  if (s.busy) LsLoading(stringResource(R.string.lk_loading))
+  LsAction(stringResource(R.string.care_save), vm::save, Modifier.fillMaxWidth().testTag("care_save"),
+   primary = true, enabled = !locked && s.saved == null,
+  )
  }
 }
+
 @Composable fun BasicCareDetail(vm:BasicCareViewModel,animal:String,id:String,animalInfo:AnimalDetail?=null,back:()->Unit){
  val s by vm.state.collectAsState();LaunchedEffect(animal,id){vm.read(id,animal)}
  AnimalPage(stringResource(R.string.care_detail),back){

@@ -87,7 +87,7 @@ import pe.novatick.anitec.ui.theme.Poppins
     }
 }
 @Composable internal fun AnimalField(value: String,onChange: (String)->Unit,label: String,help: String,tag: String,errorText: String?,
-    enabled: Boolean=true,trailing: (@Composable ()->Unit)?=null) {
+    enabled: Boolean=true,placeholder: String="",trailing: (@Composable ()->Unit)?=null) {
     var focused by remember {mutableStateOf(false)}
     Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
         LsText(label,size=12)
@@ -99,7 +99,12 @@ import pe.novatick.anitec.ui.theme.Poppins
                 Row(Modifier.fillMaxWidth().heightIn(min=48.dp).background(LivestockVisuals.Pale,RoundedCornerShape(13.dp))
                     .border(1.dp,if(errorText!=null) Color(0xFFAE4141) else if(focused) PrimaryGreen else Color.Transparent,RoundedCornerShape(13.dp))
                     .padding(start=13.dp,end=if(trailing==null) 13.dp else 0.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f).padding(vertical=12.dp)) {editor()}
+                    Box(Modifier.weight(1f).padding(vertical=12.dp)) {
+                        if (value.isEmpty() && placeholder.isNotEmpty()) {
+                            LsText(placeholder, size = 12, color = LivestockVisuals.Secondary)
+                        }
+                        editor()
+                    }
                     trailing?.invoke()
                 }
             })
