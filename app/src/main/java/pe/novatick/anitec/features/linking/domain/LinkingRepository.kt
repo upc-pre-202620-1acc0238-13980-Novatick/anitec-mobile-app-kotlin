@@ -1,5 +1,14 @@
 package pe.novatick.anitec.features.linking.domain
 
+import pe.novatick.anitec.features.livestock.domain.AnimalSummary
+
+internal fun List<AnimalSummary>.filterLinkedAnimals(search: String, speciesId: String?, farmId: String?): List<AnimalSummary> =
+    filter { animal ->
+        (farmId == null || animal.farmId == farmId) &&
+            (speciesId == null || animal.speciesId == speciesId) &&
+            (animal.code.contains(search, ignoreCase = true) || animal.name.orEmpty().contains(search, ignoreCase = true))
+    }
+
 data class Invitation(val id: String,val email: String,val status: String,val delivery: String,val sentAt: String)
 data class PendingInvitation(val id: String,val farmerName: String,val sentDate: String)
 data class VetLink(val id: String,val farmerId: String,val farmerName: String,val vetId: String,val vetName: String,val linkedAt: String)

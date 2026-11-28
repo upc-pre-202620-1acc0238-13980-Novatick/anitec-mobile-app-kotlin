@@ -178,7 +178,7 @@ class LinkingRepositoryImpl(private val api: LinkingApi,private val requests: Au
    }
   }
   if(animals.map {it.id}.distinct().size!=animals.size) invalid()
-  Inventory(active,animals)
+  Inventory(active, animals, owner.farms.associate { it.id to it.name })
  }
  override suspend fun animal(farmerId: String,animalId: String)=mapped {
   val owner=allowedFarmer(farmerId);val wire=livestock ?: invalid();val target=id(animalId)
@@ -187,7 +187,7 @@ class LinkingRepositoryImpl(private val api: LinkingApi,private val requests: Au
   val species=id(d.speciesId)
   d.birthDate?.let {if("birthDate" in animalInputErrors(NewAnimal(farm,species,AnimalSex.DESCONOCIDO,birthDate=it))) invalid()}
   AnimalDetail(target,text(d.code),d.name,text(d.species),species,AnimalSex.entries.firstOrNull {it.name==d.sex} ?: invalid(),d.breed,d.birthDate,
-   AnimalStatus.entries.firstOrNull {it.name==d.status} ?: invalid(),farm,text(d.farmName),count(d.version),d.photoUrl,pe.novatick.anitec.features.livestock.infrastructure.recentCare(d.recentAttentions))
+   AnimalStatus.entries.firstOrNull {it.name==d.status} ?: invalid(),farm,text(d.farmName),count(d.version),d.photoUrl,pe.novatick.anitec.features.livestock.infrastructure.recentCare(d.recentAttentions), d.attentionsCount?.let(::count))
  }
 
 }

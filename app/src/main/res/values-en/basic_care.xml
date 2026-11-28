@@ -24,4 +24,7 @@
  <string name="care_no_vaccinations">No vaccinations were recorded for this visit.</string>
  <string name="care_instructions">Care instructions</string>
  <string name="care_no_instructions">No care instructions were recorded for this visit.</string>
+ <string name="care_view_all_count">View all (%1$d)</string>
+ <string name="lk_all_farms">All farms</string>
+ <string name="lk_filter_farm">Farm</string>
 </resources>

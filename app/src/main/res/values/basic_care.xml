@@ -24,4 +24,7 @@
  <string name="care_no_vaccinations">No se registraron vacunas en esta atención.</string>
  <string name="care_instructions">Indicaciones de cuidado</string>
  <string name="care_no_instructions">No se registraron indicaciones en esta atención.</string>
+ <string name="care_view_all_count">Ver todas (%1$d)</string>
+ <string name="lk_all_farms">Todas las fincas</string>
+ <string name="lk_filter_farm">Finca</string>
 </resources>

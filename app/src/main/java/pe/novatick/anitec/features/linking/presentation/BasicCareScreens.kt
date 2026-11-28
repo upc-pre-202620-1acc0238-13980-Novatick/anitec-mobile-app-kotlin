@@ -29,20 +29,19 @@ import java.util.*
   LsText(stringResource(R.string.care_history), Modifier.weight(1f), bold = true)
   if (!animal.recentCare.isNullOrEmpty()) {
    TextButton(openHistory, Modifier.testTag("care_view_all")) {
-    LsText(stringResource(R.string.care_view_all), size = 12, bold = true, color = PrimaryGreen)
+    val total = animal.attentionsCount
+    val label = if (total != null) stringResource(R.string.care_view_all_count, total)
+        else stringResource(R.string.care_view_all)
+    LsText(label, size = 12, bold = true, color = PrimaryGreen)
    }
   }
  }
- val items=animal.recentCare
- when{items==null->LsNotice(stringResource(R.string.care_unavailable));items.isEmpty()->LsNotice(stringResource(R.string.care_empty));else->{val item=items.first()
-  Surface(onClick={open(item.id)},Modifier.fillMaxWidth().testTag("care_latest"),shape=RoundedCornerShape(15.dp),color=Color.White,border=BorderStroke(1.dp,LivestockVisuals.Border)){
-   Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
-    Icon(painterResource(R.drawable.ls_document_official),null,Modifier.size(20.dp),tint=Color.Unspecified)
-    Column(Modifier.weight(1f)){LsText(item.title,size=12,bold=true);LsText(careDateLabel(item.date,LocalConfiguration.current.locales[0])+" · "+item.vetName,size=10,color=NeutralSlate)}
-    Icon(painterResource(R.drawable.visit_chevron_official),null,Modifier.size(17.dp),tint=Color.Unspecified)
-   }
-  }
- }}
+ val items = animal.recentCare
+ when {
+  items == null -> LsNotice(stringResource(R.string.care_unavailable))
+  items.isEmpty() -> LsNotice(stringResource(R.string.care_empty))
+  else -> HistoryCard(items.first(), tag = "care_latest") { open(items.first().id) }
+ }
 }
 @Composable fun BasicCareForm(vm:BasicCareViewModel,farmer:String,animal:String,back:()->Unit,saved:()->Unit){
  val s by vm.state.collectAsState();LaunchedEffect(farmer,animal){vm.begin(farmer,animal)}
@@ -85,17 +84,19 @@ import java.util.*
     }
    }}
    Surface(Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp),color=Color.White,border=BorderStroke(1.dp,LivestockVisuals.Border)){
-    Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-     LsText(stringResource(R.string.care_related),size=10,color=NeutralSlate);LsText(value.title,bold=true)
-     LsText(stringResource(R.string.care_vet),size=10,color=NeutralSlate);LsText(value.vetName,size=12,bold=true)
-     LsText(stringResource(R.string.care_date_read),size=10,color=NeutralSlate);LsText(careDateLabel(value.date,LocalConfiguration.current.locales[0]),size=12,bold=true)
+    Column {
+     CareDetailField(stringResource(R.string.care_related), value.title)
+     HorizontalDivider(color = LivestockVisuals.Border)
+     CareDetailField(stringResource(R.string.care_vet), value.vetName)
+     HorizontalDivider(color = LivestockVisuals.Border)
+     CareDetailField(stringResource(R.string.care_date_read), careDateLabel(value.date, LocalConfiguration.current.locales[0]))
     }
    }
    LsText(stringResource(R.string.care_summary),bold=true)
    CarePanel(value.description)
    LsText(stringResource(R.string.care_treatments), bold = true)
    if (value.treatments.isEmpty()) CarePanel(stringResource(R.string.care_no_treatments))
-   value.treatments.forEach { CareDatedEntry(it.description, it.date, PrimaryGreen) }
+   value.treatments.forEach { CareDatedEntry(it.description, it.date, Color(0xFFB45309), R.drawable.ic_book) }
    LsText(stringResource(R.string.care_vaccinations), bold = true)
    if (value.vaccinations.isEmpty()) CarePanel(stringResource(R.string.care_no_vaccinations))
    value.vaccinations.forEach {
@@ -148,9 +149,9 @@ internal fun MedicalHistoryScreen(
 }
 
 @Composable
-private fun HistoryCard(row: CareSummary, onClick: () -> Unit) {
+private fun HistoryCard(row: CareSummary, tag: String = "care_history_" + row.id, onClick: () -> Unit) {
  Surface(
-  onClick = onClick, modifier = Modifier.fillMaxWidth().testTag("care_history_" + row.id),
+  onClick = onClick, modifier = Modifier.fillMaxWidth().testTag(tag),
   shape = RoundedCornerShape(15.dp), color = Color.White, border = BorderStroke(1.dp, LivestockVisuals.Border),
  ) {
   Row(
@@ -167,6 +168,14 @@ private fun HistoryCard(row: CareSummary, onClick: () -> Unit) {
    }
    Icon(painterResource(R.drawable.visit_chevron_official), null, Modifier.size(17.dp), tint = Color.Unspecified)
   }
+ }
+}
+
+@Composable
+private fun CareDetailField(label: String, value: String) {
+ Column(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 8.dp)) {
+  LsText(label, size = 10, color = NeutralSlate)
+  LsText(value, size = 12, bold = true)
  }
 }
 

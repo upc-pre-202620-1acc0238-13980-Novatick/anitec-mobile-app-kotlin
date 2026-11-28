@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.graphics.Color
@@ -215,20 +216,35 @@ import pe.novatick.anitec.ui.theme.*
  }
 }
 @Composable fun LinkedAnimalsScreen(vm: LinkingViewModel,farmer: String,back: ()->Unit,onAnimal: (String)->Unit){
- val s by vm.state.collectAsState();var search by remember(farmer){mutableStateOf("")};var species by remember(farmer){mutableStateOf<String?>(null)}
+ val s by vm.state.collectAsState()
+ var search by rememberSaveable(farmer) { mutableStateOf("") }
+ var species by rememberSaveable(farmer) { mutableStateOf<String?>(null) }
+ var farm by rememberSaveable(farmer) { mutableStateOf<String?>(null) }
  LaunchedEffect(farmer){vm.readAnimals(farmer)}
  AnimalPage(stringResource(R.string.lk_their_animals),back,subtitle=s.farmers.value?.firstOrNull {it.id==farmer}?.name ?: stringResource(R.string.lk_farmer_sub)){
   LsSearch(search,{search=it})
   LinkReadContent(if(s.farmerContext==farmer)s.animals else LinkRead(loading=true),vm,{vm.readAnimals(farmer)}){inventory->
+   val allFarms = stringResource(R.string.lk_all_farms)
+   val selectedFarm = farm?.takeIf(inventory.farmNames::containsKey)
+   LaunchedEffect(inventory.farmNames) {
+    if (farm != null && selectedFarm == null) farm = null
+   }
+   val farmChoices = listOf("" to allFarms) + inventory.farmNames.map { (id, name) -> id to name }
+   AnimalSelect(
+    stringResource(R.string.lk_filter_farm), selectedFarm?.let(inventory.farmNames::get) ?: allFarms,
+    farmChoices, true, "linked_farm_filter",
+   ) { farm = it.ifEmpty { null } }
    val speciesList=inventory.content.distinctBy {it.speciesId}
    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(7.dp)){
     FilterChip(species==null,{species=null},shape=RoundedCornerShape(20.dp),border=BorderStroke(0.dp,Color.Transparent),colors=FilterChipDefaults.filterChipColors(containerColor=LivestockVisuals.Pale,selectedContainerColor=PrimaryGreenMedium),label={LsText(stringResource(R.string.lk_all_species),size=10,color=if(species==null) Color.White else NeutralSlate)})
     speciesList.forEach {item->FilterChip(species==item.speciesId,{species=item.speciesId},shape=RoundedCornerShape(20.dp),border=BorderStroke(0.dp,Color.Transparent),colors=FilterChipDefaults.filterChipColors(containerColor=LivestockVisuals.Pale,selectedContainerColor=PrimaryGreenMedium),label={LsText(item.species,size=10,color=if(species==item.speciesId) Color.White else NeutralSlate)})}
    }
-   val found=inventory.content.filter {(species==null || it.speciesId==species) && (it.code.contains(search,true) || it.name.orEmpty().contains(search,true))}
+   val found = inventory.content.filterLinkedAnimals(search, species, selectedFarm)
    LsText(pluralStringResource(R.plurals.ls_result_count,found.size,found.size),size=11,color=NeutralSlate)
    if(found.isEmpty())LsNotice(stringResource(R.string.lk_no_animals))
-   found.forEach {item->AnimalRow(item,onClick={onAnimal(item.id)})}
+   found.forEach { animal ->
+    AnimalRow(animal, onClick = { onAnimal(animal.id) }, farmName = inventory.farmNames[animal.farmId])
+   }
   }
  }
 }
