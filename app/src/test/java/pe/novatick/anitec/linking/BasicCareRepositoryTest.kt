@@ -62,4 +62,53 @@ class BasicCareRepositoryTest {
   try{repo.createCare(owner,input);fail()}catch(e:AuthFailure){assertEquals(AuthProblem.RELOGIN,e.problem)}
   assertEquals(3,server.requestCount)
  }
+ @Test fun historyUsesAnimalUuidAndReturnsZeroOneAndAllRowsInStableOrder()=runBlocking {
+  val newer="90000000-0000-4000-8000-000000000003"
+  val older="90000000-0000-4000-8000-000000000002"
+  for (viewer in listOf(Role.GANADERO, Role.VETERINARIO)) {
+   role=viewer
+   reply("[]")
+   assertTrue(repo.medicalHistory(animal).isEmpty())
+   reply("[ "+detail()+" ]")
+   assertEquals(care,repo.medicalHistory(animal).single().id)
+   val next=detail(newer).replace("2020-02-29","2021-01-01")
+   reply("["+detail(older)+","+detail()+","+next+"]")
+   assertEquals(listOf(newer,care,older),repo.medicalHistory(animal).map{it.id})
+   repeat(3) {
+    val request=server.takeRequest()
+    assertEquals("GET",request.method)
+    assertEquals("/api/v1/animals/$animal/medical-history",request.path)
+   }
+  }
+ }
+ @Test fun historyRejectsMismatchedOrRepeatedEntriesAndDenials()=runBlocking {
+  for (body in listOf("["+detail().replace(animal,farm)+"]","["+detail()+","+detail()+"]")) {
+   reply(body)
+   try{repo.medicalHistory(animal);fail()}catch(e:AuthFailure){assertEquals(AuthProblem.INVALID_RESPONSE,e.problem)}
+  }
+  for (status in listOf(401,403,404)) {
+   server.enqueue(MockResponse().setResponseCode(status))
+   try{repo.medicalHistory(animal);fail()}catch(e:AuthFailure){assertEquals(status,e.status)}
+  }
+  assertEquals(5,server.requestCount)
+ }
+ @Test fun historyDiscardsResponseAfterAccountChange()=runBlocking {
+  afterResponse={role=Role.GANADERO}
+  reply("[ "+detail()+" ]")
+  try{repo.medicalHistory(animal);fail()}catch(e:AuthFailure){assertEquals(AuthProblem.RELOGIN,e.problem)}
+ }
+ @Test fun fullDetailReadsContractualClinicalFieldsAndNullableInstructions()=runBlocking {
+  val clinical=detail().dropLast(1)+""","treatments":[{"description":"Curación","date":"2020-02-29"}],"vaccinations":[{"name":"Vacuna QA","date":"2020-02-28"}],"instructions":{"content":"Reposo","authorName":"QA Vet","updatedAt":"2020-02-29T18:00:00Z"}}"""
+  reply(clinical)
+  val result=repo.care(care,animal)
+  assertEquals(CareTreatment("Curación","2020-02-29"),result.treatments.single())
+  assertEquals(CareVaccination("Vacuna QA","2020-02-28"),result.vaccinations.single())
+  assertEquals(CareInstructions("Reposo","QA Vet","2020-02-29T18:00:00Z"),result.instructions)
+  assertEquals("/api/v1/attentions/$care",server.takeRequest().path)
+  reply(detail().dropLast(1)+""","treatments":[],"vaccinations":[],"instructions":null}""")
+  val empty=repo.care(care,animal)
+  assertTrue(empty.treatments.isEmpty())
+  assertTrue(empty.vaccinations.isEmpty())
+  assertNull(empty.instructions)
+ }
 }

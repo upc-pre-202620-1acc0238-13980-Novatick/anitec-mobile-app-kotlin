@@ -236,14 +236,14 @@ import pe.novatick.anitec.ui.theme.*
  val read=if(s.farmerContext==farmer && s.observationAnimalId==id)s.observations else LinkRead(loading=true)
  return ReadState(read.value,read.loading,read.error!=null)
 }
-@Composable fun LinkedAnimalDetailScreen(vm: LinkingViewModel,farmer: String,id: String,back: ()->Unit,allObservations: ()->Unit={},visitVm:VisitsViewModel?=null,registerCare:(()->Unit)?=null,openCare:(String)->Unit={}){
+@Composable fun LinkedAnimalDetailScreen(vm: LinkingViewModel,farmer: String,id: String,back: ()->Unit,allObservations: ()->Unit={},visitVm:VisitsViewModel?=null,registerCare:(()->Unit)?=null,openCare:(String)->Unit={},openHistory:()->Unit={}){
  var scheduleOpen by remember(farmer,id){mutableStateOf(false)}
  if(scheduleOpen && visitVm!=null)VisitScheduleModal(visitVm,{scheduleOpen=false},{scheduleOpen=false;vm.readToday()})
  val s by vm.state.collectAsState();LaunchedEffect(farmer,id){vm.readAnimal(farmer,id);vm.readObservations(farmer,id)}
  val read=if(s.farmerContext==farmer && s.animalId==id)s.animal else LinkRead(loading=true)
  AnimalDetailScreen(LivestockState(animalDetailId=id,animalDetail=ReadState(read.value,read.loading,read.error!=null),animalDetailError=read.error),back,{vm.readAnimal(farmer,id);vm.readObservations(farmer,id)},readOnly=true,observations={
   ReadOnlyObservationSection(observationRead(s,farmer,id),{vm.readObservations(farmer,id)},allObservations)
-  read.value?.let{LatestCareSection(it,openCare)}
+  read.value?.let{LatestCareSection(it,openCare,openHistory)}
   Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){
    VeterinaryShortcut(stringResource(R.string.lk_schedule),R.drawable.link_schedule_official,Modifier.weight(1f).testTag("vet_schedule_unavailable"),available=visitVm!=null,onClick={visitVm?.begin(farmer,id);scheduleOpen=true})
    VeterinaryShortcut(stringResource(R.string.lk_record_care),R.drawable.link_attention_official,Modifier.weight(1f).testTag("vet_care_unavailable"),available=registerCare!=null,onClick={registerCare?.invoke()})
@@ -277,8 +277,14 @@ import pe.novatick.anitec.ui.theme.*
    composable("invitations"){VeterinarianInvitationsScreen(vm){nav.popBackStack()}}
    composable("farmer/{id}"){LinkedFarmerDetailScreen(vm,it.arguments?.getString("id").orEmpty(),{nav.popBackStack()},{nav.navigate("farmer/${it.arguments?.getString("id")}/animals")})}
    composable("farmer/{id}/animals"){entry->val owner=entry.arguments?.getString("id").orEmpty();LinkedAnimalsScreen(vm,owner,{nav.popBackStack()}){nav.navigate("farmer/$owner/animal/$it")}}
-   composable("farmer/{id}/animal/{animalId}"){entry->val owner=entry.arguments?.getString("id").orEmpty();val animal=entry.arguments?.getString("animalId").orEmpty();LinkedAnimalDetailScreen(vm,owner,animal,{nav.popBackStack()},{nav.navigate("farmer/$owner/animal/$animal/observations")},visits,{nav.navigate("care_new/$owner/$animal")},{nav.navigate("care/$animal/$it")})}
+   composable("farmer/{id}/animal/{animalId}"){entry->val owner=entry.arguments?.getString("id").orEmpty();val animal=entry.arguments?.getString("animalId").orEmpty();LinkedAnimalDetailScreen(vm,owner,animal,{nav.popBackStack()},{nav.navigate("farmer/$owner/animal/$animal/observations")},visits,{nav.navigate("care_new/$owner/$animal")},{nav.navigate("care/$animal/$it")},{care.readHistory(animal);nav.navigate("care_history/$animal"){launchSingleTop=true}})}
    composable("care_new/{owner}/{animal}"){entry->val owner=entry.arguments?.getString("owner").orEmpty();val animal=entry.arguments?.getString("animal").orEmpty();BasicCareForm(care,owner,animal,{nav.popBackStack()}){vm.readAnimal(owner,animal);nav.popBackStack()}}
+   composable("care_history/{animal}") { entry ->
+    val animal = entry.arguments?.getString("animal").orEmpty()
+    MedicalHistoryScreen(care, animal, s.animal.value, { nav.popBackStack() }) {
+     nav.navigate("care/$animal/$it") { launchSingleTop = true }
+    }
+   }
    composable("care/{animal}/{id}"){entry->BasicCareDetail(care,entry.arguments?.getString("animal").orEmpty(),entry.arguments?.getString("id").orEmpty(),s.animal.value){nav.popBackStack()}}
    composable("farmer/{id}/animal/{animalId}/observations"){entry->LinkedObservationsScreen(vm,entry.arguments?.getString("id").orEmpty(),entry.arguments?.getString("animalId").orEmpty()){nav.popBackStack()}}
    composable("profile"){pe.novatick.anitec.ui.screens.home.RancherProfileScreen(userName=profile.name+" "+profile.lastName,userEmail=profile.email,userRole=stringResource(R.string.lk_veterinarian_role),onLogoutClick=logout)}

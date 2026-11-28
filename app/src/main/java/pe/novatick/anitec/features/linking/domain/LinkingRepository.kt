@@ -7,6 +7,8 @@ data class LinkedFarm(val id: String,val name: String,val animals: Long)
 data class LinkedFarmer(val id: String,val name: String,val animals: Long,val farms: List<LinkedFarm>)
 data class LinkCapacity(val vetId: String,val allowed: Int,val active: Int,val revision: Long)
 interface LinkingRepository {
+    suspend fun medicalHistory(animalId: String): List<pe.novatick.anitec.features.livestock.domain.CareSummary> =
+        throw pe.novatick.anitec.features.auth.domain.AuthFailure(pe.novatick.anitec.features.auth.domain.AuthProblem.FORBIDDEN)
     suspend fun createCare(farmerId:String,input:pe.novatick.anitec.features.livestock.domain.NewBasicCare):pe.novatick.anitec.features.livestock.domain.BasicCare = throw pe.novatick.anitec.features.auth.domain.AuthFailure(pe.novatick.anitec.features.auth.domain.AuthProblem.FORBIDDEN)
     suspend fun care(id:String,animalId:String):pe.novatick.anitec.features.livestock.domain.BasicCare = throw pe.novatick.anitec.features.auth.domain.AuthFailure(pe.novatick.anitec.features.auth.domain.AuthProblem.FORBIDDEN)
     suspend fun upcomingVisits(): List<FarmerVisit> = throw pe.novatick.anitec.features.auth.domain.AuthFailure(pe.novatick.anitec.features.auth.domain.AuthProblem.FORBIDDEN)

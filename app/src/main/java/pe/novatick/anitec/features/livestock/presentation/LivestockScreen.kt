@@ -35,7 +35,7 @@ import pe.novatick.anitec.features.linking.presentation.*
     DisposableEffect(visits){onDispose{visits?.close()}}
     val nav=rememberNavController();val entry by nav.currentBackStackEntryAsState()
     val selectVisit:(pe.novatick.anitec.features.linking.domain.FarmerVisit)->Unit={nav.navigate("farmer_visit/${it.visit.id}")}
-    val tab=when(entry?.destination?.route) { "cattle","animal_register","animal/{id}","animal/{id}/edit","animal/{id}/observations","animal/{id}/observation/new"->RancherTab.CATTLE;"profile"->RancherTab.PROFILE;"vets","invite_vet"->RancherTab.VETS;else->RancherTab.HOME }
+    val tab=when(entry?.destination?.route) { "cattle","animal_register","animal/{id}","animal/{id}/edit","animal/{id}/observations","animal/{id}/observation/new","care_history/{animal}","care/{animal}/{id}"->RancherTab.CATTLE;"profile"->RancherTab.PROFILE;"vets","invite_vet"->RancherTab.VETS;else->RancherTab.HOME }
     val obs by vm.observations.uiState.collectAsState();val state by vm.uiState.collectAsState();val type=MaterialTheme.typography
     val labels=mapOf(RancherTab.HOME to stringResource(R.string.ls_tab_home),RancherTab.CATTLE to stringResource(R.string.ls_tab_cattle),
         RancherTab.VETS to stringResource(R.string.ls_tab_vets),RancherTab.PROFILE to stringResource(R.string.ls_tab_profile))
@@ -61,8 +61,16 @@ import pe.novatick.anitec.features.linking.presentation.*
                     edit={vm.beginMutation();nav.navigate("animal/$id/edit")},deactivate=vm::deactivateAnimal,
                     reloadMutation={vm.reloadMutation(id)},consumeMutation=vm::consumeMutation,observations={animalId ->
                         ObservationSection(animalId,obs,vm.observations,{nav.navigate("animal/$id/observations")},{vm.observations.begin();nav.navigate("animal/$id/observation/new")})
-                        if(care!=null)selected.animalDetail.value?.let{LatestCareSection(it){attention->nav.navigate("care/$id/$attention")}}
+                        if(care!=null)selected.animalDetail.value?.let{LatestCareSection(it,{attention->nav.navigate("care/$id/$attention")},{care.readHistory(id);nav.navigate("care_history/$id"){launchSingleTop=true}})}
                     })
+            }
+            composable("care_history/{animal}") { entry ->
+                val animal = entry.arguments?.getString("animal").orEmpty()
+                care?.let {
+                    MedicalHistoryScreen(it, animal, state.animalDetail.value, { nav.popBackStack() }) { attention ->
+                        nav.navigate("care/$animal/$attention") { launchSingleTop = true }
+                    }
+                }
             }
             composable("care/{animal}/{id}"){entry->care?.let{BasicCareDetail(it,entry.arguments?.getString("animal").orEmpty(),entry.arguments?.getString("id").orEmpty(),state.animalDetail.value){nav.popBackStack()}}}
             composable("animal/{id}/edit") {back -> val id=back.arguments?.getString("id").orEmpty()

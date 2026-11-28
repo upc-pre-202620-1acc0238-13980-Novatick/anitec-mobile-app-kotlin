@@ -4,7 +4,16 @@ import java.text.ParsePosition
 import java.util.*
 
 data class CareSummary(val id:String,val title:String,val vetName:String,val date:String,val summary:String)
-data class BasicCare(val id:String,val animalId:String,val title:String,val description:String,val date:String,val veterinarianId:String,val vetName:String)
+data class BasicCare(val id:String,val animalId:String,val title:String,val description:String,val date:String,val veterinarianId:String,val vetName:String,
+ val treatments: List<CareTreatment> = emptyList(),
+ val vaccinations: List<CareVaccination> = emptyList(),
+ val instructions: CareInstructions? = null,
+)
+data class CareTreatment(val description: String, val date: String)
+data class CareVaccination(val name: String, val date: String)
+data class CareInstructions(val content: String, val authorName: String?, val updatedAt: String?)
+
+internal val careSummaryOrder = compareByDescending<CareSummary> { it.date }.thenBy { it.id }
 data class NewBasicCare(val animalId:String,val title:String,val description:String,val date:String)
 fun careDateLabel(value:String,locale:Locale):String {
  val zone=TimeZone.getTimeZone("UTC")

@@ -24,16 +24,44 @@ class LinkingRepositoryImpl(private val api: LinkingApi,private val requests: Au
  private fun role(expected: Role): Profile=(profile() ?: throw AuthFailure(AuthProblem.RELOGIN)).also {if(it.role!=expected) throw AuthFailure(AuthProblem.FORBIDDEN,403)}
  private suspend fun <T> mapped(block: suspend ()->T): T=try {block()} catch(e: CancellationException){throw e} catch(e: AuthFailure){throw e} catch(_: Exception){invalid()}
  private fun <T> expected(r: Response<T>,code: Int=200)=r.also {if(it.isSuccessful && it.code()!=code) invalid()}
- private fun basicCare(d:BasicCareDto):BasicCare {
-  if(!validCareDate(d.attentionDate.orEmpty()))invalid()
-  return BasicCare(id(d.id),id(d.animalId),text(d.title),text(d.description),d.attentionDate!!,id(d.veterinarianId),text(d.vetName))
+ private fun civilDate(value: String?): String = text(value).also { if (!validCareDate(it)) invalid() }
+ private fun basicCare(d:BasicCareDto, includeClinical: Boolean = false):BasicCare {
+
+  return BasicCare(
+   id(d.id), id(d.animalId), text(d.title), text(d.description), civilDate(d.attentionDate),
+   id(d.veterinarianId), text(d.vetName),
+   treatments = if (includeClinical) d.treatments.orEmpty().map {
+    CareTreatment(text(it.description), civilDate(it.date))
+   } else emptyList(),
+   vaccinations = if (includeClinical) d.vaccinations.orEmpty().map {
+    CareVaccination(text(it.name), civilDate(it.date))
+   } else emptyList(),
+   instructions = if (includeClinical) d.instructions?.let {
+    CareInstructions(text(it.content), it.authorName?.takeIf(String::isNotBlank), it.updatedAt)
+   } else null,
+  )
  }
  override suspend fun care(id:String,animalId:String)=mapped {
+  val target = this.id(animalId)
   val me=profile() ?: throw AuthFailure(AuthProblem.RELOGIN)
-  val result=basicCare(requests.execute{expected(api.care(it,this.id(id)))})
-  if(result.id!=id || result.animalId!=this.id(animalId))invalid()
-  if(profile()?.id!=me.id)throw AuthFailure(AuthProblem.RELOGIN)
+  val result=basicCare(requests.execute{expected(api.care(it,this.id(id)))}, includeClinical = true)
+  if(result.id!=id || result.animalId!=target)invalid()
+  val current = profile()
+  if (current?.id != me.id || current.role != me.role) throw AuthFailure(AuthProblem.RELOGIN)
   result
+ }
+ override suspend fun medicalHistory(animalId: String): List<CareSummary> = mapped {
+  val me = profile() ?: throw AuthFailure(AuthProblem.RELOGIN)
+  val target = id(animalId)
+  val rows = requests.execute { expected(api.medicalHistory(it, target)) }.map { dto ->
+   val care = basicCare(dto)
+   if (care.animalId != target) invalid()
+   CareSummary(care.id, care.title, care.vetName, care.date, care.description)
+  }
+  if (rows.distinctBy { it.id }.size != rows.size) invalid()
+  val current = profile()
+  if (current?.id != me.id || current.role != me.role) throw AuthFailure(AuthProblem.RELOGIN)
+  rows.sortedWith(careSummaryOrder)
  }
  override suspend fun createCare(farmerId:String,input:NewBasicCare)=mapped {
   val me=role(Role.VETERINARIO);if(!careInputValid(input))throw AuthFailure(AuthProblem.SERVER,400,"VALIDATION_ERROR")
