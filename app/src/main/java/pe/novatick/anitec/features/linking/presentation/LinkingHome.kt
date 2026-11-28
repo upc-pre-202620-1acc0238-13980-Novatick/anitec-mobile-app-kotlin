@@ -19,8 +19,8 @@ import pe.novatick.anitec.features.livestock.presentation.*
 import pe.novatick.anitec.ui.components.RancherHeaderShape
 import pe.novatick.anitec.ui.theme.*
 
-/** Figma 104:3913; today's visits are read-only, full agenda and clinical actions remain unavailable. */
-@Composable fun VeterinaryHome(vm: LinkingViewModel,profile: Profile,farmers: ()->Unit,invitations: ()->Unit,account: ()->Unit,onSchedule:(()->Unit)?=null,onAgenda:(()->Unit)?=null,onVisit:((pe.novatick.anitec.features.linking.domain.HomeVisit)->Unit)?=null,revision:Long=0) {
+/** Figma 104:3913; veterinary home and available shortcuts. */
+@Composable fun VeterinaryHome(vm: LinkingViewModel,profile: Profile,farmers: ()->Unit,invitations: ()->Unit,account: ()->Unit,onSchedule:(()->Unit)?=null,onAgenda:(()->Unit)?=null,onVisit:((pe.novatick.anitec.features.linking.domain.HomeVisit)->Unit)?=null,revision:Long=0,onRegisterCare:(()->Unit)?=null) {
  val s by vm.state.collectAsState()
  LaunchedEffect(vm,revision){while(true){vm.readToday();val now=System.currentTimeMillis();delay((VisitDay.current(now).end-now).coerceAtLeast(1000))}}
  Column(Modifier.fillMaxSize().background(Color.White).verticalScroll(rememberScrollState())) {
@@ -54,7 +54,7 @@ import pe.novatick.anitec.ui.theme.*
    LsText(stringResource(R.string.lk_shortcuts),bold=true)
    Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
     VeterinaryShortcut(stringResource(R.string.lk_schedule),R.drawable.link_schedule_official,Modifier.weight(1f).testTag("home_schedule_unavailable"),available=onSchedule!=null,onClick={onSchedule?.invoke()})
-    VeterinaryShortcut(stringResource(R.string.lk_record_care),R.drawable.link_attention_official,Modifier.weight(1f).testTag("home_care_unavailable"),available=false)
+    VeterinaryShortcut(stringResource(R.string.lk_record_care),R.drawable.link_attention_official,Modifier.weight(1f).testTag(if(onRegisterCare==null) "home_care_unavailable" else "home_care_register"),available=onRegisterCare!=null,onClick={onRegisterCare?.invoke()})
    }
    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){LsText(stringResource(R.string.lk_agenda_today),Modifier.weight(1f),bold=true);TextButton({onAgenda?.invoke()},enabled=onAgenda!=null){LsText(stringResource(R.string.lk_view_agenda),size=10,color=if(onAgenda==null)NeutralSlate else PrimaryGreen)}}
    if(s.today.loading)LsLoading(stringResource(R.string.lk_loading))

@@ -280,7 +280,7 @@ import pe.novatick.anitec.ui.theme.*
  val vs by visits.state.collectAsState()
  DisposableEffect(vm){vm.refresh();onDispose{vm.close()}}
  val nav=rememberNavController();val entry by nav.currentBackStackEntryAsState();val route=entry?.destination?.route
- val tab=when{route=="home"->VeterinarianTab.HOME;route=="profile"->VeterinarianTab.PROFILE;route=="agenda" || route=="schedule" || route?.startsWith("visit/")==true->VeterinarianTab.AGENDA;else->VeterinarianTab.RANCHERS}
+ val tab=when{route=="home" || route=="care_create"->VeterinarianTab.HOME;route=="profile"->VeterinarianTab.PROFILE;route=="agenda" || route=="schedule" || route?.startsWith("visit/")==true->VeterinarianTab.AGENDA;else->VeterinarianTab.RANCHERS}
  val s by vm.state.collectAsState()
  val labels=mapOf(VeterinarianTab.HOME to stringResource(R.string.lk_home),VeterinarianTab.AGENDA to stringResource(R.string.lk_agenda),VeterinarianTab.RANCHERS to stringResource(R.string.lk_farmers),VeterinarianTab.PROFILE to stringResource(R.string.lk_profile))
  val blocked=s.busy || vs.form.busy || vs.form.uncertain || cs.busy
@@ -288,13 +288,29 @@ import pe.novatick.anitec.ui.theme.*
  val select:(HomeVisit)->Unit={visits.select(it);nav.navigate("visit/${it.id}/${it.time}")}
  Scaffold(containerColor=Color.White,bottomBar={VeterinarianBottomBar(tab,{selected->if(!blocked)nav.navigate(when(selected){VeterinarianTab.HOME->"home";VeterinarianTab.PROFILE->"profile";VeterinarianTab.AGENDA->"agenda";else->"farmers"}){launchSingleTop=true;popUpTo("home")}},labels)}){padding->Box(Modifier.padding(padding).consumeWindowInsets(padding)){
   NavHost(nav,startDestination="home"){
-   composable("home"){VeterinaryHome(vm,profile,{nav.navigate("farmers")},{nav.navigate("invitations")},{nav.navigate("profile")},schedule,{visits.focusDay(VisitDay.current());nav.navigate("agenda")},select,vs.revision)}
+   composable("home"){VeterinaryHome(vm,profile,{nav.navigate("farmers")},{nav.navigate("invitations")},{nav.navigate("profile")},schedule,{visits.focusDay(VisitDay.current());nav.navigate("agenda")},select,vs.revision,onRegisterCare={nav.navigate("care_create"){launchSingleTop=true}})}
    composable("farmers"){VeterinarianFarmersScreen(vm,{nav.navigate("farmer/$it")},{nav.navigate("invitations")})}
    composable("invitations"){VeterinarianInvitationsScreen(vm){nav.popBackStack()}}
    composable("farmer/{id}"){LinkedFarmerDetailScreen(vm,it.arguments?.getString("id").orEmpty(),{nav.popBackStack()},{nav.navigate("farmer/${it.arguments?.getString("id")}/animals")})}
    composable("farmer/{id}/animals"){entry->val owner=entry.arguments?.getString("id").orEmpty();LinkedAnimalsScreen(vm,owner,{nav.popBackStack()}){nav.navigate("farmer/$owner/animal/$it")}}
    composable("farmer/{id}/animal/{animalId}"){entry->val owner=entry.arguments?.getString("id").orEmpty();val animal=entry.arguments?.getString("animalId").orEmpty();LinkedAnimalDetailScreen(vm,owner,animal,{nav.popBackStack()},{nav.navigate("farmer/$owner/animal/$animal/observations")},visits,{nav.navigate("care_new/$owner/$animal")},{nav.navigate("care/$animal/$it")},{care.readHistory(animal);nav.navigate("care_history/$animal"){launchSingleTop=true}})}
-   composable("care_new/{owner}/{animal}"){entry->val owner=entry.arguments?.getString("owner").orEmpty();val animal=entry.arguments?.getString("animal").orEmpty();BasicCareForm(care,owner,animal,{nav.popBackStack()}){vm.readAnimal(owner,animal);nav.popBackStack()}}
+   composable("care_create") {
+    BasicCareForm(care, back = { nav.popBackStack() }) { owner, animal ->
+     nav.navigate("farmer/$owner/animal/$animal") {
+      popUpTo("care_create") { inclusive = true }
+      launchSingleTop = true
+     }
+    }
+   }
+   composable("care_new/{owner}/{animal}") { entry ->
+    val owner = entry.arguments?.getString("owner").orEmpty()
+    val animal = entry.arguments?.getString("animal").orEmpty()
+    val context = s.animal.value?.takeIf { it.id == animal && s.farmerContext == owner }
+    BasicCareForm(care, owner, animal, context, { nav.popBackStack() }) { savedOwner, savedAnimal ->
+     vm.readAnimal(savedOwner, savedAnimal)
+     nav.popBackStack()
+    }
+   }
    composable("care_history/{animal}") { entry ->
     val animal = entry.arguments?.getString("animal").orEmpty()
     MedicalHistoryScreen(care, animal, s.animal.value, { nav.popBackStack() }) {
